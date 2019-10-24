@@ -55,7 +55,7 @@
 -----
 # TypeQL
 
-* Query, compose and transform data from any data source.
+* Actions, Combinators and Filters
 
         usrs = Read DB User {}
 
@@ -74,7 +74,7 @@
 
 -----
 
-* translates to
+* translates to a type level DSL in haskell.
 
         type Usrs = Read DB User '[]
 
@@ -90,15 +90,11 @@
                                     `Using` ">= 20""
                                   ]
 
-* execute the query by
-
-        runTypeQuery @Usrs
-
 -----
 
 # Reifying query
 
-- Type query is converted into a richer (type level) ast called tree.
+- Generated type query is converted into a richer (type level) ast called tree.
 - The reification is done with (closed) type families.
 
 
@@ -112,7 +108,7 @@
 
 # Reifying query (2)
   * Validations at type level
-  * invalid targetting or filter type mismatch
+    - invalid targetting or filter type mismatch
 
             usrs = Read DB User { FilterBy time, Avg name }
 
@@ -281,8 +277,8 @@
    - proMap to execute the pipeline
    
           class (Profunctor pro
-                ) => ProMapping pro o' o | pro o' -> o where
-           proMap :: pro x' x -> o' x' -> o x
+                ) => ProMapping pro f' f | pro f' -> f where
+           proMap :: pro x' x -> f' x' -> f x
 
 
 -----
