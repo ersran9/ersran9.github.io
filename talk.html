@@ -1,0 +1,351 @@
+<!doctype html>
+
+<!--
+  Presentation on Haskell in production
+  Original template by: @henrikingo https://github.com/henrikingo
+-->
+
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Experience report</title>
+    
+    <meta name="description" content="Haskell in Production" />
+    <meta name="author" content="Sreenidhi Nair" />
+    <link rel="stylesheet" href="extras/highlight/styles/magula.css">
+
+        
+    <!--
+        Styles specific for this example presentation. 
+    -->
+    <link href="css/markdown-slides.css" rel="stylesheet" />
+    <!-- <link href="css/devopsy.css" rel="stylesheet" /> -->
+    <link href="css/effects.css" rel="stylesheet" />    
+</head>
+
+<body class="impress-not-supported">
+<div class="fallback-message">
+    <p>Your browser <b>doesn't support the features required</b> by impress.js, so you are presented with a simplified version of this presentation.</p>
+    <p>For the best experience please use the latest <b>Chrome</b>, <b>Safari</b> or <b>Firefox</b> browser.</p>
+</div>
+
+<div id="impress" data-transition-duration="1000">
+<div id="markdown" class="step slide markdown" data-rel-x="0" data-rel-y="900">
+
+# Haskell at ByteAlly
+
+* FMap - A transpiler to convert Haskell EDSL to mobile platforms generating human readable code. 
+* FRF  - Workflow library that is easy to define & visualize business processes.
+* TypeQL - A query language for the internet.
+
+-----
+# TypeQL
+
+* Query, compose and transform data from any data source.
+
+        usrs = Read DB User {}
+
+        usrAndProfs = InnerJoin { usrs  = Read DB User {} 
+                                , profs = Api Profile {}
+                                } { input joinOn
+                                   :with { usrs.id
+                                         , profs.userId
+                                         }
+                                   :using-hs (==)
+                                  }
+
+        usrsAbove20 = Read DB User { FilterBy age
+                                     :using-hs `>= 20`
+                                   }
+
+-----
+
+* translates to
+
+        type Usrs = Read DB User '[]
+
+        type UsrAndProfs =
+          InnerJoin '[ "usrs"  := Read DB User '[]
+                     , "profs" := Api Profile '[]
+                     ] '[ Input "joinOn" `With`
+                     [ "usrs" :. "id", "profs" :. "userId" ]
+                       `Using` "=="
+                     ]
+
+        type Usrs = Read DB User '[ FilterBy '[S "age"]
+                                    `Using` ">= 20""
+                                  ]
+
+* execute the query by
+
+        runTypeQuery @Usrs
+
+-----
+
+# Reifying query
+
+- Type query is converted into a richer (type level) ast called tree.
+- The reification is done with (closed) type families.
+
+
+
+        type family F a where
+          F Int  = Double
+          F Bool = Char
+          F a    = String
+
+-----
+
+# Reifying query (2)
+  * Validations at type level
+  * invalid targetting or filter type mismatch
+
+            usrs = Read DB User { FilterBy time, Avg name }
+
+  * Custom type errors are really useful to emit domain specific errors.
+
+        type family F a where
+          F Int  = Double
+          F Bool = Char
+          F a    = TypeError ('Text "It isn't Int or Bool")
+
+  * The reified "tree" is also used for editor completions.
+
+-----
+
+# Implementing actions and combinators
+
+  * Typeclasses for exposing an interface
+
+        class Action act where
+          .. 
+
+        class Combinator cmb where
+          ..
+
+        class Filter flt where
+          .. 
+    
+-----
+
+# Modelling ADTs
+
+  * avoid boilerplate of writing different types differing by a few types
+
+        type Users = [User]
+        data User = User { name :: Text
+                         , age :: Age
+                         , dept :: Department
+                         }
+
+        type UsersAvgAge = [UserAvgAge]
+        data UserAvgAge = UserAvgAge { name :: Text
+                                     , avgAge :: Double
+                                     , dept :: Department
+                                     }     
+     
+
+-----
+
+# Modelling ADTs (2)
+
+  * HList representation
+  
+        data HList xs where
+          (:>) :: x -> HList xs -> HList (fld ::: x ': xs)
+          HNil :: HList '[]
+
+        type User = HList '[ "name" ::: Identity Text
+                           , "age"  ::: Identity Age
+                           , "dept" ::: Identity Department
+                           ]
+
+        type UserAvgAge =
+             HList '[ "name" ::: Identity Text
+                    , "age"  ::: Identity Double
+                    , "dept" ::: Identity Department
+                    ]
+
+
+-----
+
+# Filter processing pipeline
+
+   * Two types of filters
+     - Transformational filters
+     - Row filters
+
+-----
+
+# Transformational filters
+
+   - transforms a particular field
+
+        usrs = Read DB User { Map "age" :using-hs (+ 1) }
+           name      age  department
+        [ "person1", 20   , IT
+        , "person2", 20   , IT
+        ]
+        =>
+        [ "person1", 21   , IT
+        , "person2", 21   , IT
+        ]
+
+
+
+   - Functors for the transformation
+
+         class Functor f where
+           fmap :: (a -> b) -> f a -> f b
+
+-----
+
+# Row filters
+
+   - update on the rows
+
+        usrAvgAge = Read DB User { Avg "age", GroupBy "dept"
+                                 , Exclude "name" }
+           name      age  department
+        [ "person1", 20   , IT
+        , "person2", 20   , IT
+        , "person3", 25   , Sales
+        ]
+        =>
+           name      age  department
+        [ ()       , 20.0   , IT
+        , ()       , 25.0   , Sales
+        ]
+
+-----
+
+# Row filters (2)
+
+   - Profunctors to capture the operation
+
+          class Profunctor p where
+             dimap :: (b -> a) -> (c -> d) -> p a c -> p b d
+
+   - (->), Star, Fold from foldl are all profunctors. 
+
+          usrAvgAge = Read DB User { FilterBy age
+                                    :using-hs (> 20) }
+          -- data Star f a b = Star { runStar :: a -> f b }
+          -- Star Maybe models filtering
+          name => Star $ \x -> Just x
+          age  => Star $ \x -> if x > 20
+                               then Just x
+                               else Nothing
+          dept => Star $ \x -> Just x
+-----
+
+# Row filters (3)
+
+   - stitch profunctors together by product profunctor
+
+          name :: Star Maybe Text       Text
+          age  :: Star Maybe Age        Age
+          dept :: Star Maybe Department Department
+
+          Star Maybe
+          (HList '["name" ::: Text
+                  , "age" ::: Age
+                  , "dept" ::: Department])
+          (HList '["name" ::: Text
+                  , "age" ::: Age
+                  , "dept" ::: Department])
+
+          class Profunctor p => ProductProfunctor p where
+            purePP :: b -> p a b
+	        (****) :: p a (b -> c) -> p a b -> p a c
+
+
+-----
+
+# Row filters (4)
+
+   - proMap to execute the pipeline
+   
+          class (Profunctor pro
+                ) => ProMapping pro o' o | pro o' -> o where
+           proMap :: pro x' x -> o' x' -> o x
+
+
+-----
+
+# Concurrent by default
+
+          usrAndProfs =
+            InnerJoin { usrs = Read DB User {} 
+                      , profs = Api Profile {}
+                      } { input joinOn
+                        :with { usrs.id
+                              , profs.userId
+                              }
+                        :using-hs `(==)`
+                        }
+ 
+  * haskell has lightweight green threads
+ 
+    
+-----
+
+# Concurrent by default
+
+ * Haxl - abstraction over "resources"
+
+            usrAndProfs =
+              innerJoin <$> dataFetch (Read :: Read DB User)
+                        <*> dataFetch (Api  :: Api Profile )
+
+ * ApplicativeDo makes it better!
+
+          usrAndProfs = do
+            usrs <- dataFetch (Read :: Read DB User)
+            apis <- dataFetch (Api  :: Api Profile )
+            innerJoin usrs apis
+
+-----
+
+# Downsides
+
+   - Compilation time / memory consumed with a lot of type level operations is often high.
+   - Error messages, if not handled by custom type errors, can be often
+     very cryptic.
+
+-----
+
+# Takeaways
+
+  - Higher level abstractions lets you solve bigger problems.
+  - Types can be used to encode domain specific information, and compiler can used for analysis.
+
+-----
+
+# Questions ?
+  
+</div>
+
+<div id="title-slide" class="step slide title" data-x="2000" data-y="5000">
+  
+<h1> Learnings from haskell in production </h1>
+<h2> <b>Sreenidhi Nair</b> </h2>
+<br />
+<br />
+<img class="title" alt="ByteAlly logo" src="images/byteally.png">
+
+<h4> sreenidhi@byteally.com </h4>
+
+</div>
+
+</div>
+
+<div id="impress-toolbar"></div>
+<div id="impress-help"></div>
+<script type="text/javascript" src="extras/highlight/highlight.pack.js"></script>
+<script type="text/javascript" src="extras/mermaid/mermaid.min.js"></script>
+<script type="text/javascript" src="extras/markdown/markdown.js"></script>
+<script type="text/javascript" src="js/impress.js"></script>
+<script>impress().init();</script>
+</body>
+</html>
