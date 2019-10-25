@@ -48,16 +48,31 @@
 
 # Haskell at ByteAlly
 
+* Haskell from the beginning, for last 8 years.
+
 * FMap - A transpiler to convert Haskell EDSL to mobile platforms generating human readable code. 
 * FRF  - Workflow library that is easy to define & visualize business processes.
 * TypeQL - A query language for the internet.
 
 -----
+
 # TypeQL
 
-* Actions, Combinators and Filters
+- Typed query language
+- [ HOLE: why should someone care? ]
+- Being used currently in internal projects
+
+-----
+# Actions
 
         usrs = Read DB User {}
+
+        type Usrs = Read DB User '[]
+
+
+-----
+
+# Combinators
 
         usrAndProfs = InnerJoin { usrs  = Read DB User {} 
                                 , profs = Api Profile {}
@@ -68,15 +83,6 @@
                                    :using-hs (==)
                                   }
 
-        usrsAbove20 = Read DB User { FilterBy age
-                                     :using-hs `>= 20`
-                                   }
-
------
-
-* translates to a type level DSL in haskell.
-
-        type Usrs = Read DB User '[]
 
         type UsrAndProfs =
           InnerJoin '[ "usrs"  := Read DB User '[]
@@ -86,9 +92,39 @@
                        `Using` "=="
                      ]
 
+-----
+
+# Filters
+
+        usrsAbove20 = Read DB User { FilterBy age
+                                     :using-hs `>= 20`
+                                   }
+
+
         type Usrs = Read DB User '[ FilterBy '[S "age"]
                                     `Using` ">= 20""
                                   ]
+
+-----
+
+# Reifying query 
+
+  * Validations
+    - invalid targetting
+
+            usrs = Read DB User { FilterBy time }
+
+    - filter type mismatch
+
+            usrs = Read DB User { Avg name }
+
+  * Custom type errors for emitting domain specific errors.
+
+        type family F a where
+          F Int  = Int
+          F a    = TypeError ('Text "It isn't Int or Bool")
+
+  * The reification is also used for editor completions.
 
 -----
 
@@ -97,63 +133,37 @@
 - Generated type query is converted into a richer (type level) ast called tree.
 - The reification is done with (closed) type families.
 
-
-
-        type family F a where
-          F Int  = Double
-          F Bool = Char
-          F a    = String
-
 -----
 
-# Reifying query (2)
-  * Validations at type level
-    - invalid targetting or filter type mismatch
+# Extensibility
 
-            usrs = Read DB User { FilterBy time, Avg name }
+* Actions
+  - SQL, WebApi, CSV, GPU
 
-  * Custom type errors are really useful to emit domain specific errors.
+* Combinators
+  - Joins, And, Or
 
-        type family F a where
-          F Int  = Double
-          F Bool = Char
-          F a    = TypeError ('Text "It isn't Int or Bool")
+* Filters
+  - FilterBy, GroupBy, Avg, Sum
 
-  * The reified "tree" is also used for editor completions.
-
------
-
-# Implementing actions and combinators
-
-  * Typeclasses for exposing an interface
-
-        class Action act where
-          .. 
-
-        class Combinator cmb where
-          ..
-
-        class Filter flt where
-          .. 
-    
 -----
 
 # Modelling ADTs
 
-  * avoid boilerplate of writing different types differing by a few types
+  * avoid boilerplate of writing different types differing by a few types.
 
-        type Users = [User]
+        newtype Age = Age { getAge :: Natural }
+        newtype Department = Department { getDept :: Text }
+
         data User = User { name :: Text
                          , age :: Age
                          , dept :: Department
                          }
 
-        type UsersAvgAge = [UserAvgAge]
         data UserAvgAge = UserAvgAge { name :: Text
                                      , avgAge :: Double
                                      , dept :: Department
                                      }     
-     
 
 -----
 
@@ -185,6 +195,9 @@
      - Transformational filters
      - Row filters
 
+   * Filters maintain compositionality as much as possible.
+     - [ HOLE: Expand with maybe an example? ]
+
 -----
 
 # Transformational filters
@@ -201,12 +214,7 @@
         , "person2", 21   , IT
         ]
 
-
-
-   - Functors for the transformation
-
-         class Functor f where
-           fmap :: (a -> b) -> f a -> f b
+   - :using-{lang} . currently haskell is supported, close to adding js.
 
 -----
 
@@ -222,14 +230,71 @@
         , "person3", 25   , Sales
         ]
         =>
-           name      age  department
-        [ ()       , 20.0   , IT
-        , ()       , 25.0   , Sales
+           age  department
+        [  20.0   , IT
+        ,  25.0   , Sales
         ]
 
 -----
 
-# Row filters (2)
+# Concurrent by default
+
+          usrAndProfs =
+            InnerJoin { usrs = Read DB User {} 
+                      , profs = Api Profile {}
+                      } { input joinOn
+                        :with { usrs.id
+                              , profs.userId
+                              }
+                        :using-hs `(==)`
+                        }
+ 
+  * haskell has lightweight green threads
+ 
+-----
+
+# Concurrent by default (2)
+
+  * "Haxl is a Haskell library that simplifies access to remote data, such as databases or web-based services."
+
+          {-# LANGUAGE ApplicativeDo #-}
+
+          usrAndProfs = do
+            usrs <- dataFetch (Read :: Read DB User)
+            apis <- dataFetch (Api  :: Api Profile )
+            innerJoin usrs apis
+
+-----
+
+# Downsides
+
+   - Compilation time / memory consumed with a lot of type level operations is often high.
+   - Error messages, if not handled by custom type errors, can be often
+     very cryptic.
+   - It is often hard to hire Haskell developers.
+		    
+-----
+
+# Takeaways
+
+  - Prevent bugs at compile time.
+  - Queries run in parallel - thanks to excellent concurrency story of haskell.
+  - Types can be used to encode domain specific information, and compiler can be used for analysis.
+		    
+-----
+
+# Questions ?
+
+
+
+-----
+
+Addendum
+
+
+-----
+
+# Row filters 
 
    - Profunctors to capture the operation
 
@@ -249,7 +314,7 @@
           dept => Star $ \x -> Just x
 -----
 
-# Row filters (3)
+# Row filters (2)
 
    - stitch profunctors together by product profunctor
 
@@ -272,7 +337,7 @@
 
 -----
 
-# Row filters (4)
+# Row filters (3)
 
    - proMap to execute the pipeline
    
@@ -281,59 +346,8 @@
            proMap :: pro x' x -> f' x' -> f x
 
 
------
-
-# Concurrent by default
-
-          usrAndProfs =
-            InnerJoin { usrs = Read DB User {} 
-                      , profs = Api Profile {}
-                      } { input joinOn
-                        :with { usrs.id
-                              , profs.userId
-                              }
-                        :using-hs `(==)`
-                        }
- 
-  * haskell has lightweight green threads
- 
-    
------
-
-# Concurrent by default
-
- * Haxl - abstraction over "resources"
-
-            usrAndProfs =
-              innerJoin <$> dataFetch (Read :: Read DB User)
-                        <*> dataFetch (Api  :: Api Profile )
-
- * ApplicativeDo makes it better!
-
-          usrAndProfs = do
-            usrs <- dataFetch (Read :: Read DB User)
-            apis <- dataFetch (Api  :: Api Profile )
-            innerJoin usrs apis
-
------
-
-# Downsides
-
-   - Compilation time / memory consumed with a lot of type level operations is often high.
-   - Error messages, if not handled by custom type errors, can be often
-     very cryptic.
-
------
-
-# Takeaways
-
-  - Higher level abstractions lets you solve bigger problems.
-  - Types can be used to encode domain specific information, and compiler can used for analysis.
-
------
-
-# Questions ?
-  
+-----		    
+		    
 </div>
 
 </div>
