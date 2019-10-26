@@ -58,9 +58,9 @@
 
 # TypeQL
 
-- Typed query language
-- [ HOLE: why should someone care? ]
-- Being used currently in internal projects
+* Typed query language.
+* Intended for stitching data from different sources and processing it.
+* Being used currently in internal projects.
 
 -----
 # Actions
@@ -74,23 +74,14 @@
 
 # Combinators
 
-        usrAndProfs = InnerJoin { usrs  = Read DB User {} 
-                                , profs = Api Profile {}
-                                } { input joinOn
-                                   :with { usrs.id
-                                         , profs.userId
-                                         }
-                                   :using-hs (==)
-                                  }
+        usrCourses = Product { usrs  = Read DB User {} 
+                             , courses = Api Course {}
+                             } { }
 
-
-        type UsrAndProfs =
-          InnerJoin '[ "usrs"  := Read DB User '[]
-                     , "profs" := Api Profile '[]
-                     ] '[ Input "joinOn" `With`
-                     [ "usrs" :. "id", "profs" :. "userId" ]
-                       `Using` "=="
-                     ]
+        type UsrCourses =
+          Product '[ "usrs"  := Read DB User '[]
+                   , "courses" := Api Profile '[]
+                   ] '[ ]
 
 -----
 
@@ -102,8 +93,10 @@
 
 
         type Usrs = Read DB User '[ FilterBy '[S "age"]
-                                    `Using` ">= 20""
+                                    `Using` >= 20
                                   ]
+
+- :using-{lang} . currently haskell is supported, close to adding js.
 
 -----
 
@@ -118,11 +111,21 @@
 
             usrs = Read DB User { Avg name }
 
+    - input type mismatch
+
+            usrsAbove20 = Read DB User { FilterBy age
+                                         :using-hs `+ 1`
+                                       }
+
+-----
+
+# Reifying query
+
   * Custom type errors for emitting domain specific errors.
 
         type family F a where
           F Int  = Int
-          F a    = TypeError ('Text "It isn't Int or Bool")
+          F a    = TypeError ('Text "It isn't an Int")
 
   * The reification is also used for editor completions.
 
@@ -195,9 +198,6 @@
      - Transformational filters
      - Row filters
 
-   * Filters maintain compositionality as much as possible.
-     - [ HOLE: Expand with maybe an example? ]
-
 -----
 
 # Transformational filters
@@ -213,8 +213,6 @@
         [ "person1", 21   , IT
         , "person2", 21   , IT
         ]
-
-   - :using-{lang} . currently haskell is supported, close to adding js.
 
 -----
 
@@ -239,6 +237,8 @@
 
 # Concurrent by default
 
+  * actions run concurrently
+
           usrAndProfs =
             InnerJoin { usrs = Read DB User {} 
                       , profs = Api Profile {}
@@ -248,14 +248,17 @@
                               }
                         :using-hs `(==)`
                         }
- 
+
+
   * haskell has lightweight green threads
  
 -----
 
 # Concurrent by default (2)
 
-  * "Haxl is a Haskell library that simplifies access to remote data, such as databases or web-based services."
+  * Haxl is a haskell library that simplifies access to remote data, such as databases or web-based services.
+
+  * efficient scheduling of concurrent data accesses
 
           {-# LANGUAGE ApplicativeDo #-}
 
@@ -278,6 +281,7 @@
 # Takeaways
 
   - Prevent bugs at compile time.
+  - Query multiple sources of data while maintaining composibility as much as possible.
   - Queries run in parallel - thanks to excellent concurrency story of haskell.
   - Types can be used to encode domain specific information, and compiler can be used for analysis.
 		    
