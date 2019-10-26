@@ -80,7 +80,7 @@
 
         type UsrCourses =
           Product '[ "usrs"  := Read DB User '[]
-                   , "courses" := Api Profile '[]
+                   , "courses" := Api Course '[]
                    ] '[ ]
 
 -----
@@ -156,7 +156,7 @@
   * avoid boilerplate of writing different types differing by a few types.
 
         newtype Age = Age { getAge :: Natural }
-        newtype Department = Department { getDept :: Text }
+        newtype Department = Dept { getDept :: Text }
 
         data User = User { name :: Text
                          , age :: Age
