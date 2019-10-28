@@ -49,10 +49,11 @@
 # Haskell at ByteAlly
 
 * Haskell from the beginning, for last 8 years.
-
 * FMap - A transpiler to convert Haskell EDSL to mobile platforms generating human readable code. 
-* FRF  - Workflow library that is easy to define & visualize business processes.
+* FRF  - Workflow library that is easy to define &amp; visualize business processes.
 * TypeQL - A query language for the internet.
+
+Today: we're going to focus on TypeQL
 
 -----
 
@@ -60,81 +61,93 @@
 
 * Typed query language.
 * Intended for stitching data from different sources and processing it.
+    * Good place for subbullets
+    * Comment on the different sources
+    * Make it clear how powerful this is!
 * Being used currently in internal projects.
 
 -----
 # Actions
 
-        usrs = Read DB User {}
+## TypeQL
 
-        type Usrs = Read DB User '[]
+    usrs = Read DB User {}
 
+## Haskell
+
+    type Usrs = Read DB User '[]
 
 -----
 
 # Combinators
 
-        usrCourses = Product { usrs  = Read DB User {} 
-                             , courses = Api Course {}
-                             } { }
+## TypeQL
 
-        type UsrCourses =
-          Product '[ "usrs"  := Read DB User '[]
-                   , "courses" := Api Course '[]
-                   ] '[ ]
+    usrCourses = Product { usrs  = Read DB User {} 
+                         , courses = Api Course {}
+                         } { }
+
+## Haskell
+
+    type UsrCourses =
+      Product '[ "usrs"  := Read DB User '[]
+               , "courses" := Api Course '[]
+               ] '[ ]
 
 -----
 
 # Filters
 
-        usrsAbove20 = Read DB User { FilterBy age
-                                     :using-hs `>= 20`
-                                   }
+## TypeQL
 
+    usrsAbove20 = Read DB User { FilterBy age
+                                 :using-hs `&gt;= 20`
+                               }
 
-        type Usrs = Read DB User '[ FilterBy '[S "age"]
-                                    `Using` >= 20
-                                  ]
+## Haskell
 
-- :using-{lang} . currently haskell is supported, close to adding js.
+    type Usrs = Read DB User '[ FilterBy '[S "age"]
+                                `Using` >= 20
+                              ]
+
+- `:using-{lang}`. Currently haskell is supported, close to adding js.
 
 -----
 
-# Reifying query 
+# Validations
 
-  * Validations
-    - invalid targetting
+Powered by reifying and analyzing queries
 
-            usrs = Read DB User { FilterBy time }
+## Invalid targetting
 
-    - filter type mismatch
+    usrs = Read DB User { FilterBy time }
 
-            usrs = Read DB User { Avg name }
+## Filter type mismatch
 
-    - input type mismatch
+    usrs = Read DB User { Avg name }
 
-            usrsAbove20 = Read DB User { FilterBy age
-                                         :using-hs `+ 1`
-                                       }
+## Input type mismatch
+
+    usrsAbove20 = Read DB User { FilterBy age
+                                 :using-hs `+ 1` }
 
 -----
 
 # Reifying query
 
-  * Custom type errors for emitting domain specific errors.
+- Generated type query is converted into a richer (type level) AST called tree.
+
+- Validations performed on the reified tree.
+
+- The reification is done with (closed) type families.
 
         type family F a where
           F Int  = Int
           F a    = TypeError ('Text "It isn't an Int")
 
-  * The reification is also used for editor completions.
+- Custom type errors for emitting domain specific errors.
 
------
-
-# Reifying query
-
-- Generated type query is converted into a richer (type level) ast called tree.
-- The reification is done with (closed) type families.
+- The reification is also used for editor completions.
 
 -----
 
@@ -153,118 +166,121 @@
 
 # Modelling ADTs
 
-  * avoid boilerplate of writing different types differing by a few types.
+Avoid boilerplate of writing different types differing by a few types. With boilerplate:
 
-        newtype Age = Age { getAge :: Natural }
-        newtype Department = Dept { getDept :: Text }
+    newtype Age = Age { getAge :: Natural }
+    newtype Department = Dept { getDept :: Text }
 
-        data User = User { name :: Text
-                         , age :: Age
-                         , dept :: Department
-                         }
+    data User = User { name :: Text
+                     , age :: Age
+                     , dept :: Department
+                     }
 
-        data UserAvgAge = UserAvgAge { name :: Text
-                                     , avgAge :: Double
-                                     , dept :: Department
-                                     }     
+    data UserAvgAge = UserAvgAge { name :: Text
+                                 , avgAge :: Double
+                                 , dept :: Department
+                                 }     
 
 -----
 
 # Modelling ADTs (2)
 
-  * HList representation
+HList representation, no boilerplate:
   
-        data HList xs where
-          (:>) :: x -> HList xs -> HList (fld ::: x ': xs)
-          HNil :: HList '[]
+    data HList xs where
+      (:&gt;) :: x -&gt; HList xs -&gt; HList (fld ::: x ': xs)
+      HNil :: HList '[]
 
-        type User = HList '[ "name" ::: Identity Text
-                           , "age"  ::: Identity Age
-                           , "dept" ::: Identity Department
-                           ]
+    type User = HList '[ "name" ::: Identity Text
+                       , "age"  ::: Identity Age
+                       , "dept" ::: Identity Department
+                       ]
 
-        type UserAvgAge =
-             HList '[ "name" ::: Identity Text
-                    , "age"  ::: Identity Double
-                    , "dept" ::: Identity Department
-                    ]
+    type UserAvgAge =
+         HList '[ "name" ::: Identity Text
+                , "age"  ::: Identity Double
+                , "dept" ::: Identity Department
+                ]
 
 
 -----
 
 # Filter processing pipeline
 
-   * Two types of filters
-     - Transformational filters
-     - Row filters
+Two types of filters
+
+- Transformational filters
+- Row filters
 
 -----
 
 # Transformational filters
 
-   - transforms a particular field
+Transforms a particular field
 
-        usrs = Read DB User { Map "age" :using-hs (+ 1) }
-           name      age  department
-        [ "person1", 20   , IT
-        , "person2", 20   , IT
-        ]
-        =>
-        [ "person1", 21   , IT
-        , "person2", 21   , IT
-        ]
+    usrs = Read DB User { Map "age" :using-hs (+ 1) }
+
+       name      age  department
+    [ "person1", 20   , IT
+    , "person2", 20   , IT
+    ]
+    =&gt;
+    [ "person1", 21   , IT
+    , "person2", 21   , IT
+    ]
 
 -----
 
 # Row filters
 
-   - update on the rows
+Update on the rows
 
-        usrAvgAge = Read DB User { Avg "age", GroupBy "dept"
-                                 , Exclude "name" }
-           name      age  department
-        [ "person1", 20   , IT
-        , "person2", 20   , IT
-        , "person3", 25   , Sales
-        ]
-        =>
-           age  department
-        [  20.0   , IT
-        ,  25.0   , Sales
-        ]
+    usrAvgAge = Read DB User { Avg "age", GroupBy "dept"
+                             , Exclude "name" }
+
+       name      age  department
+    [ "person1", 20   , IT
+    , "person2", 20   , IT
+    , "person3", 25   , Sales
+    ]
+    =&gt;
+       age  department
+    [  20.0   , IT
+    ,  25.0   , Sales
+    ]
 
 -----
 
 # Concurrent by default
 
-  * actions run concurrently
+Actions run concurrently
 
-          usrAndProfs =
-            InnerJoin { usrs = Read DB User {} 
-                      , profs = Api Profile {}
-                      } { input joinOn
-                        :with { usrs.id
-                              , profs.userId
-                              }
-                        :using-hs `(==)`
+    usrAndProfs =
+      InnerJoin { usrs = Read DB User {} 
+                , profs = Api Profile {}
+                } { input joinOn
+                  :with { usrs.id
+                        , profs.userId
                         }
+                  :using-hs `(==)`
+                  }
 
 
-  * haskell has lightweight green threads
+Thanks to Haskell's lightweight green threads
  
 -----
 
 # Concurrent by default (2)
 
-  * Haxl is a haskell library that simplifies access to remote data, such as databases or web-based services.
+  * Haxl is a Haskell library that simplifies access to remote data, such as databases or web-based services.
 
-  * efficient scheduling of concurrent data accesses
+  * Efficient scheduling of concurrent data accesses
 
           {-# LANGUAGE ApplicativeDo #-}
 
           usrAndProfs = do
-            usrs <- dataFetch (Read :: Read DB User)
-            apis <- dataFetch (Api  :: Api Profile )
+            usrs &lt;- dataFetch (Read :: Read DB User)
+            apis &lt;- dataFetch (Api  :: Api Profile )
             innerJoin usrs apis
 
 -----
@@ -282,7 +298,7 @@
 
   - Prevent bugs at compile time.
   - Query multiple sources of data while maintaining composibility as much as possible.
-  - Queries run in parallel - thanks to excellent concurrency story of haskell.
+  - Queries run in parallel - thanks to excellent concurrency story of Haskell.
   - Types can be used to encode domain specific information, and compiler can be used for analysis.
 		    
 -----
