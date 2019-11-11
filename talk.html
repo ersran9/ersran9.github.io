@@ -55,6 +55,7 @@
 
 Today: we're going to focus on TypeQL
 
+
 -----
 
 # TypeQL
@@ -77,6 +78,10 @@ Today: we're going to focus on TypeQL
 ## Haskell
 
     type Usrs = Read DB User '[]
+
+* Translated to haskell type level code to
+  1. Avoid writing a custom type checker.
+  2. Ensure everything is statically checked.
 
 -----
 
@@ -187,7 +192,7 @@ Avoid boilerplate of writing different types differing by a few types. With boil
 # Modelling ADTs (2)
 
 HList representation, no boilerplate:
-  
+
     data HList xs where
       (:&gt;) :: x -&gt; HList xs -&gt; HList (fld ::: x ': xs)
       HNil :: HList '[]
@@ -203,7 +208,6 @@ HList representation, no boilerplate:
                 , "dept" ::: Identity Department
                 ]
 
-
 -----
 
 # Filter processing pipeline
@@ -212,6 +216,8 @@ Two types of filters
 
 - Transformational filters
 - Row filters
+
+- Implemented via standard haskell abstractions
 
 -----
 
@@ -291,6 +297,7 @@ Thanks to Haskell's lightweight green threads
    - Compilation time / memory consumed with a lot of type level operations is often high.
    - Error messages, if not handled by custom type errors, can be often
      very cryptic.
+   - Type level code is syntactically and semantically different from normal haskell value code.
    - It is often hard to hire Haskell developers.
 		    
 -----
@@ -298,8 +305,8 @@ Thanks to Haskell's lightweight green threads
 # Takeaways
 
   - Prevent bugs at compile time.
-  - Query multiple sources of data while maintaining composibility as much as possible.
-  - Queries run in parallel - thanks to excellent concurrency story of Haskell.
+  - Avoid boilerplate of having different types.
+  - Queries run concurrently - thanks to excellent concurrency story of Haskell.
   - Types can be used to encode domain specific information, and compiler can be used for analysis.
 		    
 -----
@@ -310,7 +317,11 @@ Thanks to Haskell's lightweight green threads
 
 -----
 
-Addendum
+# Thank You
+
+-----
+
+# Addendum
 
 
 -----
